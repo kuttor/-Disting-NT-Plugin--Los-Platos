@@ -1,20 +1,17 @@
 /*
- * Los Platos v3.1.0 - Realistic Cymbal Synthesizer
+ * Los Platos v3.4.0 - Realistic Cymbal Synthesizer
  * Expert Sleepers Disting NT
  *
- * CHANGES IN v3.1.0:
- * - FIXED: Edge vs Bell completely reversed!
- *   Real Edge: DARK (1524 Hz centroid), LONG (36s decay), LOW modes
- *   Real Bell: BRIGHT (5287 Hz centroid), SHORT (1.5s decay), HIGH modes
- * - Added Output Mode (Add/Replace) per other Disting NT plugins
- * - Added "None" option for Choke input
- * - Added "None" option for Output R (mono mode)
- * - Fixed routing parameter ranges
+ * CHANGES IN v3.4.0:
+ * - Re-enabled stick transient at 0.25x (was disabled)
+ * - Reduced strike energy to 1.5x (was 5x)
+ * - Ride Bell: reduced low freq amplitudes, extended high freq decays
+ * - High frequency modes need longer decay to be audible
  *
- * v3.0.0:
- * - Complete rewrite using true modal synthesis
- * - Measured modal frequencies from real cymbals
- * - Individual decay rates per mode
+ * v3.3.0: Diagnostic build (broken - disabled transient)
+ * v3.2.x: Fixed modes from measured samples
+ * v3.1.x: Fixed Edge vs Bell reversal
+ * v3.0.0: Complete rewrite using true modal synthesis
  */
 
 #include <math.h>
@@ -51,7 +48,7 @@ private:
 };
 
 // ============================================================================
-// MODAL RESONATOR - Single resonant mode with proper decay
+// MODAL RESONATOR
 // ============================================================================
 
 class ModalResonator {
@@ -63,7 +60,7 @@ public:
     
     void setMode(float freq, float decayTime, float amp) {
         frequency = clampf(freq, 20.0f, sampleRate * 0.45f);
-        decay = clampf(decayTime, 0.01f, 60.0f);  // Allow up to 60s for edge
+        decay = clampf(decayTime, 0.01f, 60.0f);
         amplitude = amp;
         computeCoefficients();
     }
@@ -81,7 +78,6 @@ public:
     }
     
     void damp(float amount) {
-        // Quick damping for choke
         y1 *= (1.0f - amount);
         y2 *= (1.0f - amount);
     }
@@ -115,40 +111,35 @@ struct ModeData {
     float decay;
 };
 
-// RIDE BELL - Measured from real ride cymbal bell hit
-// BRIGHT (5287 Hz centroid), SHORT decay (~1.5s), strong 4-6kHz "ping"
+// RIDE BELL - BRIGHT (5287 Hz centroid), SHORT decay (~1.5s)
+// RIDE BELL - BRIGHT (4800 Hz centroid), focused ping character
+// Boosted high freq amplitudes and extended decay times
 static const ModeData RIDE_BELL_MODES[] = {
-    // Low modes - give body but not dominant
-    { 407.5f,  0.30f, 2.0f },   // Fundamental - present but not dominant
-    { 570.0f,  0.15f, 1.8f },
-    { 878.0f,  0.20f, 1.5f },
-    { 1670.0f, 0.25f, 1.2f },
-    // Mid-high modes - the character
-    { 2681.0f, 0.40f, 0.8f },
-    { 3264.0f, 0.55f, 0.6f },
-    { 3518.0f, 0.45f, 0.5f },
-    { 3604.0f, 0.75f, 0.45f },
-    // HIGH modes - the signature "PING" - these are LOUDEST
-    { 4208.0f, 1.00f, 0.35f },   // LOUDEST - the ping!
-    { 4389.0f, 0.50f, 0.30f },
-    { 4991.0f, 0.60f, 0.25f },
-    { 5578.0f, 0.55f, 0.20f },
-    { 5638.0f, 0.95f, 0.18f },   // Secondary ping
-    { 6043.0f, 0.70f, 0.15f },
-    { 6641.0f, 0.55f, 0.12f },
-    // Shimmer - very fast decay
-    { 7500.0f, 0.35f, 0.08f },
-    { 8500.0f, 0.25f, 0.06f },
-    { 10000.0f, 0.15f, 0.04f },
+    { 407.5f,  0.15f, 2.0f },    // Reduced low mode
+    { 570.0f,  0.10f, 1.8f },    
+    { 878.0f,  0.12f, 1.5f },    
+    { 1670.0f, 0.18f, 1.2f },
+    { 2681.0f, 0.30f, 0.9f },
+    { 3264.0f, 0.45f, 0.7f },
+    { 3518.0f, 0.40f, 0.6f },
+    { 3604.0f, 0.65f, 0.55f },
+    { 4208.0f, 1.00f, 0.50f },   // LOUDEST - the ping!
+    { 4389.0f, 0.55f, 0.45f },
+    { 4991.0f, 0.65f, 0.40f },
+    { 5578.0f, 0.60f, 0.35f },
+    { 5638.0f, 0.95f, 0.30f },   // Secondary ping
+    { 6043.0f, 0.75f, 0.25f },
+    { 6641.0f, 0.60f, 0.20f },
+    { 7500.0f, 0.45f, 0.18f },
+    { 8500.0f, 0.35f, 0.15f },
+    { 10000.0f, 0.25f, 0.12f },
 };
 static constexpr int NUM_RIDE_BELL_MODES = sizeof(RIDE_BELL_MODES) / sizeof(ModeData);
 
-// RIDE EDGE - Measured from real ride cymbal edge hit
-// DARK (1524 Hz centroid), VERY LONG decay (36s!), LOW modes dominant
+// RIDE EDGE - DARK (791 Hz centroid), VERY LONG decay (36s!)
 static const ModeData RIDE_EDGE_MODES[] = {
-    // These LOW modes are dominant for edge hits!
-    { 47.0f,   0.45f, 40.0f },   // Sub - very long decay
-    { 102.0f,  1.00f, 35.0f },   // LOUDEST - the body
+    { 47.0f,   0.45f, 40.0f },
+    { 102.0f,  1.00f, 35.0f },
     { 172.0f,  0.40f, 30.0f },
     { 228.0f,  0.50f, 28.0f },
     { 307.0f,  0.25f, 25.0f },
@@ -162,71 +153,89 @@ static const ModeData RIDE_EDGE_MODES[] = {
     { 803.0f,  0.08f, 8.0f },
     { 898.0f,  0.15f, 6.0f },
     { 1023.0f, 0.03f, 4.0f },
-    // Very little high frequency content
     { 1500.0f, 0.02f, 2.0f },
 };
 static constexpr int NUM_RIDE_EDGE_MODES = sizeof(RIDE_EDGE_MODES) / sizeof(ModeData);
 
-// CRASH - Bright, explosive, medium decay (~2-3s)
+// CRASH - Measured from real crash cymbal  
+// Centroid: 2845 Hz, Decay: 8.30s
+// Energy: <1kHz 67% | 1-5kHz 15% | >5kHz 18%
+// Needs both low body AND high shimmer
 static const ModeData CRASH_MODES[] = {
-    { 280.0f,  0.25f, 3.0f },
-    { 450.0f,  0.30f, 2.8f },
-    { 680.0f,  0.35f, 2.5f },
-    { 1000.0f, 0.45f, 2.2f },
-    { 1500.0f, 0.55f, 1.8f },
-    { 2200.0f, 0.70f, 1.4f },
-    { 3000.0f, 0.85f, 1.0f },
-    { 4000.0f, 1.00f, 0.7f },
-    { 5200.0f, 0.90f, 0.5f },
-    { 6500.0f, 0.75f, 0.35f },
-    { 8000.0f, 0.55f, 0.25f },
-    { 10000.0f, 0.35f, 0.15f },
-    { 12500.0f, 0.20f, 0.10f },
+    {   123.0f, 0.45f, 8.0f },   // Low body
+    {   265.0f, 1.00f, 7.0f },   // LOUDEST - fundamental crash
+    {   383.0f, 0.70f, 6.0f },
+    {   511.0f, 0.60f, 5.0f },   // From real!
+    {   653.0f, 0.55f, 4.5f },   // From real!
+    {   800.0f, 0.45f, 4.0f },
+    {  1100.0f, 0.40f, 3.0f },
+    {  1800.0f, 0.45f, 2.0f },
+    {  2800.0f, 0.50f, 1.5f },   // Adding more highs!
+    {  4000.0f, 0.45f, 1.0f },
+    {  5500.0f, 0.40f, 0.7f },
+    {  7000.0f, 0.35f, 0.5f },
+    {  9000.0f, 0.30f, 0.3f },
 };
 static constexpr int NUM_CRASH_MODES = sizeof(CRASH_MODES) / sizeof(ModeData);
 
-// HI-HAT OPEN - Bright, metallic, ~1.4s decay
+// HI-HAT OPEN - Measured from real hi-hat
+// Centroid: 8407 Hz, Decay: 1.13s
+// EXTREMELY BRIGHT - 72% energy above 5kHz!
+// Increased decay times to match real ~1s sustain
 static const ModeData HIHAT_OPEN_MODES[] = {
-    { 440.0f,  0.10f, 1.0f },
-    { 1060.0f, 0.15f, 0.9f },
-    { 2100.0f, 0.25f, 0.8f },
-    { 3350.0f, 0.40f, 0.6f },
-    { 4500.0f, 0.60f, 0.5f },
-    { 5800.0f, 0.80f, 0.4f },
-    { 7200.0f, 1.00f, 0.3f },   // Peak brightness
-    { 8800.0f, 0.90f, 0.25f },
-    { 10500.0f, 0.70f, 0.2f },
-    { 12500.0f, 0.50f, 0.15f },
-    { 15000.0f, 0.30f, 0.10f },
+    {  4928.0f, 0.55f, 1.2f },
+    {  4987.0f, 0.60f, 1.1f },
+    {  5387.0f, 0.60f, 1.0f },
+    {  5437.0f, 1.00f, 0.95f },  // LOUDEST
+    {  5547.0f, 0.90f, 0.90f },
+    {  6020.0f, 0.60f, 0.85f },
+    {  6436.0f, 0.85f, 0.80f },  // Peak from real sample!
+    {  6567.0f, 0.80f, 0.75f },
+    {  6703.0f, 0.85f, 0.70f },
+    {  7700.0f, 0.55f, 0.60f },
+    {  8385.0f, 0.50f, 0.50f },
+    {  9486.0f, 0.70f, 0.40f },  // Peak from real sample!
+    { 11000.0f, 0.35f, 0.30f },
+    { 13000.0f, 0.25f, 0.20f },
 };
 static constexpr int NUM_HIHAT_OPEN_MODES = sizeof(HIHAT_OPEN_MODES) / sizeof(ModeData);
 
-// HI-HAT CLOSED - Very short, tight
+// HI-HAT CLOSED - Similar brightness to open but VERY short decay
+// Tight, sizzly, metallic - quick 15-40ms decay
 static const ModeData HIHAT_CLOSED_MODES[] = {
-    { 1500.0f, 0.25f, 0.04f },
-    { 3500.0f, 0.50f, 0.035f },
-    { 6000.0f, 0.80f, 0.03f },
-    { 9000.0f, 1.00f, 0.025f },
-    { 12000.0f, 0.75f, 0.02f },
-    { 15000.0f, 0.45f, 0.015f },
+    {  5000.0f, 0.50f, 0.035f },
+    {  5500.0f, 0.80f, 0.030f },
+    {  6000.0f, 1.00f, 0.028f },  // Peak
+    {  6500.0f, 0.90f, 0.025f },
+    {  7500.0f, 0.70f, 0.022f },
+    {  8500.0f, 0.60f, 0.020f },
+    { 10000.0f, 0.50f, 0.018f },
+    { 12000.0f, 0.40f, 0.015f },
 };
 static constexpr int NUM_HIHAT_CLOSED_MODES = sizeof(HIHAT_CLOSED_MODES) / sizeof(ModeData);
 
-// SPLASH - Very bright, fast decay ~0.7s
+// SPLASH - Measured from real splash cymbal
+// Centroid: 10407 Hz, Decay: 0.63s
+// EXTREMELY BRIGHT - 88% energy above 5kHz! The brightest cymbal.
+// Peaks from real: 8528, 6396, 5806, 6196, 7230
 static const ModeData SPLASH_MODES[] = {
-    { 600.0f,  0.15f, 0.6f },
-    { 1400.0f, 0.25f, 0.5f },
-    { 2800.0f, 0.45f, 0.4f },
-    { 4500.0f, 0.70f, 0.3f },
-    { 6500.0f, 1.00f, 0.22f },
-    { 9000.0f, 0.85f, 0.15f },
-    { 12000.0f, 0.60f, 0.10f },
-    { 15000.0f, 0.35f, 0.07f },
+    {  5806.0f, 0.65f, 0.70f },  // From real!
+    {  6196.0f, 0.70f, 0.65f },  // From real!
+    {  6396.0f, 0.85f, 0.60f },  // From real!
+    {  7230.0f, 0.75f, 0.55f },  // From real!
+    {  8528.0f, 1.00f, 0.50f },  // LOUDEST - from real!
+    {  9285.0f, 0.50f, 0.45f },
+    {  9817.0f, 0.75f, 0.40f },
+    { 10270.0f, 0.55f, 0.35f },
+    { 11500.0f, 0.60f, 0.30f },
+    { 12848.0f, 0.70f, 0.25f },
+    { 13502.0f, 0.35f, 0.20f },
+    { 15000.0f, 0.25f, 0.15f },
 };
 static constexpr int NUM_SPLASH_MODES = sizeof(SPLASH_MODES) / sizeof(ModeData);
 
 // ============================================================================
-// MODAL BANK - Collection of resonators
+// MODAL BANK
 // ============================================================================
 
 static constexpr int MAX_MODES = 20;
@@ -242,31 +251,25 @@ public:
     
     void configure(const ModeData* modes, int count, float sizeMod, float toneMod, float decayMod) {
         numModes = (count > MAX_MODES) ? MAX_MODES : count;
-        
-        // Size affects frequencies (smaller = higher pitch)
-        float freqMult = 0.8f + sizeMod * 0.4f;  // 0.8 to 1.2
-        
-        // Decay modifier from parameter
-        float decayScale = 0.5f + decayMod * 1.0f;  // 0.5 to 1.5
+        float freqMult = 0.8f + sizeMod * 0.4f;
+        float decayScale = 0.5f + decayMod * 1.0f;
         
         for (int i = 0; i < numModes; i++) {
             float freq = modes[i].freq * freqMult;
             float decay = modes[i].decay * decayScale;
-            
-            // Tone affects high frequency decay (darker = highs decay faster)
+            // Tone: 0% = dark (high freq decay faster), 100% = bright (high freq sustain)
+            // At 50% tone, no modification
             if (freq > 3000.0f) {
-                decay *= (0.5f + toneMod * 1.0f);  // 0.5 to 1.5
+                decay *= (0.7f + toneMod * 0.6f);  // 0.7x to 1.3x based on tone
             }
-            
             resonators[i].setMode(freq, decay, modes[i].amp);
         }
     }
     
     void strike(float velocity) {
         for (int i = 0; i < numModes; i++) {
-            // Slight randomization per strike
             float excitation = 0.8f + 0.4f * ((float)((i * 7 + 13) % 17) / 17.0f);
-            resonators[i].strike(velocity, excitation);
+            resonators[i].strike(velocity * 1.5f, excitation);  // Moderate boost
         }
     }
     
@@ -313,16 +316,13 @@ public:
     
     float process(FastRandom& rng) {
         if (phase >= duration) return 0.0f;
-        
         float env = 1.0f - (float)phase / (float)duration;
         env = env * env;
-        
         float noise = rng.nextBipolar();
         float filtered = noise - lastNoise * (1.0f - brightness);
         lastNoise = noise;
-        
         phase++;
-        return filtered * env * velocity * 0.4f;
+        return filtered * env * velocity * 0.25f;  // Balanced level
     }
     
     void reset() { phase = duration; }
@@ -357,27 +357,27 @@ public:
         this->weightMod = (float)weight;
         
         switch (type) {
-            case 0:  // Ride
-                if (strikeType == 1) {  // Bell
+            case 0:
+                if (strikeType == 1) {
                     modalBank.configure(RIDE_BELL_MODES, NUM_RIDE_BELL_MODES, sizeMod, toneMod, decayMod);
-                    stickBrightness = 0.8f;  // Bright attack for bell
-                } else {  // Edge
+                    stickBrightness = 0.8f;
+                } else {
                     modalBank.configure(RIDE_EDGE_MODES, NUM_RIDE_EDGE_MODES, sizeMod, toneMod, decayMod);
-                    stickBrightness = 0.4f;  // Darker attack for edge
+                    stickBrightness = 0.4f;
                 }
                 break;
-            case 1:  // Crash
+            case 1:
                 modalBank.configure(CRASH_MODES, NUM_CRASH_MODES, sizeMod, toneMod, decayMod);
                 stickBrightness = 0.7f;
                 break;
-            case 2:  // Hi-Hat
+            case 2:
                 currentHiHatOpen = true;
                 modalBank.configure(HIHAT_OPEN_MODES, NUM_HIHAT_OPEN_MODES, sizeMod, toneMod, decayMod);
-                stickBrightness = 0.85f;
+                stickBrightness = 0.95f;  // Very bright attack for hi-hat
                 break;
-            case 3:  // Splash
+            case 3:
                 modalBank.configure(SPLASH_MODES, NUM_SPLASH_MODES, sizeMod, toneMod, decayMod);
-                stickBrightness = 0.9f;
+                stickBrightness = 0.98f;  // Extremely bright attack for splash
                 break;
         }
         
@@ -389,18 +389,13 @@ public:
     void trigger(float velocity) {
         modalBank.strike(velocity * (0.7f + weightMod * 0.6f));
         stick.trigger(velocity, stickBrightness);
-        isPlaying = true;
     }
     
     void updateChoke(float pressure) {
-        chokePressure = pressure;
-        
-        // Continuous damping based on choke pressure
         if (pressure > 0.05f) {
-            modalBank.damp(pressure * 0.02f);  // Gradual damping
+            modalBank.damp(pressure * 0.02f);
         }
         
-        // Hi-hat mode switching
         if (type == 2) {
             if (pressure > 0.8f && currentHiHatOpen) {
                 modalBank.configure(HIHAT_CLOSED_MODES, NUM_HIHAT_CLOSED_MODES, sizeMod, toneMod, decayMod);
@@ -415,10 +410,8 @@ public:
     float process() {
         float modal = modalBank.process();
         float transient = stick.process(rng);
-        
         float output = modal + transient;
         
-        // Soft clip
         if (output > 1.0f) output = 1.0f - 1.0f / (output + 1.0f);
         else if (output < -1.0f) output = -1.0f + 1.0f / (-output + 1.0f);
         
@@ -428,16 +421,13 @@ public:
     void reset() { 
         modalBank.reset(); 
         stick.reset();
-        isPlaying = false;
     }
     
 private:
     float sampleRate = 48000.0f;
     int type = 0, strikeType = 0;
     float sizeMod = 0.5f, toneMod = 0.5f, decayMod = 0.5f, weightMod = 0.5f;
-    float chokePressure = 0.0f;
     float stickBrightness = 0.7f;
-    bool isPlaying = false;
     bool currentHiHatOpen = true;
     
     ModalBank modalBank;
@@ -514,7 +504,6 @@ static const char* const strikeNames[] = { "Edge", "Bell", nullptr };
 static const char* const sizeNames[] = { "Small", "Medium", "Large", nullptr };
 static const char* const weightNames[] = { "Thin", "Heavy", nullptr };
 static const char* const offOnNames[] = { "Off", "On", nullptr };
-static const char* const outputModeNames[] = { "Add", "Replace", nullptr };
 
 static _NT_parameter parameters[] = {
     { .name = "Type", .min = 0, .max = 3, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = typeNames },
@@ -527,13 +516,14 @@ static _NT_parameter parameters[] = {
     { .name = "Venue", .min = 0, .max = 1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = offOnNames },
     { .name = "Reverb", .min = 0, .max = 100, .def = 20, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = nullptr },
     { .name = "Pan", .min = -50, .max = 50, .def = 0, .unit = kNT_unitNone, .scaling = 0, .enumStrings = nullptr },
+    // min=0 allows "None" for optional inputs/outputs
     { .name = "Stick In", .min = 1, .max = 28, .def = 1, .unit = kNT_unitAudioInput, .scaling = 0, .enumStrings = nullptr },
-    { .name = "Choke In", .min = 0, .max = 28, .def = 2, .unit = kNT_unitAudioInputOrNone, .scaling = 0, .enumStrings = nullptr },
+    { .name = "Choke In", .min = 0, .max = 28, .def = 0, .unit = kNT_unitAudioInput, .scaling = 0, .enumStrings = nullptr },  // Default to None!
     { .name = "Stick Vel", .min = 0, .max = 100, .def = 80, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = nullptr },
     { .name = "Choke Vel", .min = 0, .max = 100, .def = 50, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = nullptr },
     { .name = "Output L", .min = 1, .max = 28, .def = 13, .unit = kNT_unitAudioOutput, .scaling = 0, .enumStrings = nullptr },
-    { .name = "Output R", .min = 0, .max = 28, .def = 14, .unit = kNT_unitAudioOutputOrNone, .scaling = 0, .enumStrings = nullptr },
-    { .name = "Output Mode", .min = 0, .max = 1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = outputModeNames },
+    { .name = "Output R", .min = 0, .max = 28, .def = 14, .unit = kNT_unitAudioOutput, .scaling = 0, .enumStrings = nullptr },
+    { .name = "Output Mode", .min = 0, .max = 1, .def = 0, .unit = kNT_unitOutputMode, .scaling = 0, .enumStrings = nullptr },
 };
 
 static const uint8_t pageSound[] = { kParamType, kParamStrike, kParamSize, kParamWeight, kParamTone, kParamDecay, kParamGain };
@@ -634,14 +624,11 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
     
     const float* stick = busFrames + (alg->v[kParamStickInput] - 1) * numFrames;
     
-    // Choke input - can be None (0)
     int chokeInput = alg->v[kParamChokeInput];
     const float* choke = (chokeInput > 0) ? busFrames + (chokeInput - 1) * numFrames : nullptr;
     
-    // Output L - always valid (1-28)
     float* outL = busFrames + (alg->v[kParamOutputL] - 1) * numFrames;
     
-    // Output R - can be None (0) for mono
     int outputR = alg->v[kParamOutputR];
     float* outR = (outputR > 0) ? busFrames + (outputR - 1) * numFrames : nullptr;
     
@@ -663,7 +650,6 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
         }
         dtc->lastStickTrig = trig;
         
-        // Process choke if connected
         if (choke) {
             float chokeTarget = clampf(choke[i] * chokeVel, 0.0f, 1.0f);
             dtc->smoothedChoke += (chokeTarget - dtc->smoothedChoke) * 0.01f;
@@ -681,7 +667,6 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
             sigR += wet * 0.3f;
         }
         
-        // Output with Add/Replace mode
         if (outputReplace) {
             outL[i] = sigL;
             if (outR) outR[i] = sigR;
@@ -699,7 +684,7 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 static const _NT_factory factory = {
     .guid = NT_MULTICHAR( 'L', 'o', 'P', 'l' ),
     .name = "Los Platos",
-    .description = "Modal Cymbal Synthesizer v3.1.0",
+    .description = "Modal Cymbal Synthesizer v3.4.0",
     .numSpecifications = 0,
     .calculateRequirements = calculateRequirements,
     .construct = construct,
