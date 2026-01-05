@@ -1,4 +1,4 @@
-# Los Platos v3.1.0
+# Los Platos v0.1.0-dev
 
 ### A Physical Modeling Cymbal Synthesizer for Expert Sleepers Disting NT
 
@@ -24,16 +24,49 @@
 
 ---
 
+## ⚠️ DEVELOPMENT BUILD
+
+This is a development build (v0.1.0-dev). Features may change before release.
+
+---
+
 ## Overview
 
 **Los Platos** ("The Dishes") is a physical modeling cymbal synthesizer using **true modal synthesis** based on spectral analysis of real cymbals. Each cymbal type uses measured modal frequencies with individual decay rates per mode, resulting in authentic cymbal behavior.
 
 **Currently implemented cymbal types:**
 
-- **Ride** — Edge (dark, long sustain) and Bell (bright ping, short decay)
-- **Crash** — Explosive attack, bright wash
-- **Hi-Hat** — Open/closed with choke pedal control
-- **Splash** — Quick, bright, percussive
+- **Ride** — Edge (dark, washy) and Bell (bright ping)
+- **Crash** — Explosive attack, dense inharmonic wash
+- **Hi-Hat** — Open/closed with realistic choke pedal control
+- **Splash** — Bright, quick, with proper body
+
+---
+
+## What's New in v0.1.0-dev
+
+### Major Fixes
+
+| Issue | Problem | Fix |
+|-------|---------|-----|
+| **Hi-Hat "Open" sounded closed** | Decay 60-180ms (closed range), continuous micro-choking | Decay 400-700ms, threshold-based choke damping |
+| **Splash sounded like a tick** | No modes below 5kHz, missing body | Added 1-4kHz body modes, 25 total modes |
+| **Crash too pitched/metallic** | Orderly frequency progression | Inharmonic jitter, 46-mode dense distribution |
+| **Reverb was primitive** | Simple delay-based fake reverb | Full FDN reverb from El Applauso |
+
+### New FDN Reverb
+
+Ported from El Applauso v2.3.2 - a proper feedback delay network with:
+
+| Venue | Character | RT60 | Best For |
+|-------|-----------|------|----------|
+| **Studio** | Tight, controlled | 0.3s | Close-mic sound |
+| **Garage** | Reflective, slappy | 1.8s | Raw punk/rock |
+| **Bar** | Warm, mid-focused | 0.95s | Jazz, intimate |
+| **Basement** | Dark, resonant | 2.2s | Industrial, dub |
+| **Arena** | Massive, diffuse | 3.8s | Epic, cinematic |
+
+Features: Early reflections, tank modulation, modal emphasis, air absorption modeling.
 
 ---
 
@@ -41,21 +74,19 @@
 
 ### 🎛️ Four Cymbal Types
 
-| Type | Character | Best For |
-|------|-----------|----------|
-| **Ride** | Edge: dark, sustained / Bell: bright ping | Jazz, fusion, progressive |
-| **Crash** | Fast attack, bright, medium decay | Rock, pop, accents |
-| **Hi-Hat** | Bright, metallic, pedal-controlled | All genres, timekeeping |
-| **Splash** | Quick, bright, small diameter | Fills, punctuation |
+| Type | Modes | Character | Best For |
+|------|-------|-----------|----------|
+| **Ride** | 17-19 | Edge: dark wash / Bell: bright ping | Jazz, fusion |
+| **Crash** | 46 | Dense inharmonic fog, explosive | Rock, pop, accents |
+| **Hi-Hat** | 44/16 | Open: long shimmer / Closed: tight tick | All genres |
+| **Splash** | 25 | Bright with body, quick decay | Fills, punctuation |
 
 ### 🔔 Ride Strike Zones
 
-The Ride cymbal features distinct **Edge** and **Bell** modes based on measured real cymbal characteristics:
-
-| Zone | Spectral Centroid | Decay | Character |
-|------|-------------------|-------|-----------|
-| **Edge** | ~1500 Hz | Very long (30s+) | Dark, washy, sustained |
-| **Bell** | ~5300 Hz | Short (~1.5s) | Bright ping, focused |
+| Zone | Centroid | Decay | Character |
+|------|----------|-------|-----------|
+| **Edge** | ~2500 Hz | 1-3s | Dark, washy |
+| **Bell** | ~5300 Hz | ~1.5s | Bright ping |
 
 ### 🥢 Two-Input Performance Model
 
@@ -65,8 +96,7 @@ The Ride cymbal features distinct **Edge** and **Bell** modes based on measured 
 
 **CHOKE** (Input 2 — Gate + Velocity) — *Optional*
 - Gate: Held = gripping cymbal / pedal down
-- Velocity: How tight your grip / how closed the hi-hat
-- 0V = free/open, 5V = fully muted/closed
+- Threshold-based damping (no micro-choke when open)
 - Set to "None" if not using choke control
 
 ---
@@ -92,18 +122,19 @@ The Ride cymbal features distinct **Edge** and **Bell** modes based on measured 
 |-----------|-------|-------------|
 | **Type** | Ride / Crash / Hi-Hat / Splash | Cymbal type selection |
 | **Strike** | Edge / Bell | Strike zone (Ride only) |
-| **Size** | Small / Medium / Large | Cymbal diameter (affects pitch) |
-| **Weight** | Thin / Heavy | Cymbal thickness (affects attack) |
-| **Tone** | 0-100% | Dark to bright character |
-| **Decay** | 0-100% | Sustain length multiplier |
+| **Size** | Small / Medium / Large | Cymbal diameter |
+| **Style** | Normal / Heavy / Sizzle | Weight/character (Ride only) |
+| **Tone** | 0-100% | Dark to bright |
+| **Decay** | 0-100% | Sustain length |
 | **Gain** | 0-150 | Output level |
 
 ### Venue Page
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
-| **Venue** | Off / On | Enable reverb processing |
-| **Reverb** | 0-100% | Wet/dry mix |
+| **Venue** | Off / On | Enable reverb |
+| **Type** | Studio / Garage / Bar / Basement / Arena | Room character |
+| **Amount** | 0-100% | Wet/dry mix |
 | **Pan** | L50 - C - R50 | Stereo position |
 
 ### Routing Page
@@ -111,12 +142,12 @@ The Ride cymbal features distinct **Edge** and **Bell** modes based on measured 
 | Parameter | Range | Default | Description |
 |-----------|-------|---------|-------------|
 | **Stick In** | 1-28 | 1 | Trigger + velocity input |
-| **Choke In** | None, 1-28 | 2 | Gate + velocity for grip/pedal |
+| **Choke In** | None, 1-28 | None | Gate for grip/pedal |
 | **Stick Vel** | 0-100% | 80% | Velocity sensitivity |
 | **Choke Vel** | 0-100% | 50% | Choke sensitivity |
 | **Output L** | 1-28 | 13 | Left output |
-| **Output R** | None, 1-28 | 14 | Right output (None = mono) |
-| **Output Mode** | Add / Replace | Add | Sum with or replace bus content |
+| **Output R** | None, 1-28 | 14 | Right output |
+| **Output Mode** | Add / Replace | Add | Sum or replace bus |
 
 ---
 
@@ -124,69 +155,75 @@ The Ride cymbal features distinct **Edge** and **Bell** modes based on measured 
 
 ### Modal Synthesis Engine
 
-Los Platos uses true modal synthesis with measured frequencies from real cymbals:
+- Up to 50 modes per cymbal type
+- Individual frequency, amplitude, and decay per mode
+- Inharmonic ratios for realistic cymbal "fog"
+- Frequency-dependent decay (highs fade faster)
 
-- **18 modes** for Ride Bell (407 Hz - 10 kHz)
-- **16 modes** for Ride Edge (47 Hz - 1.5 kHz)  
-- Individual decay times per mode (highs decay faster)
-- Proper inharmonic frequency ratios
+### Choke Behavior (v0.1.0 Fix)
 
-### Real Cymbal Analysis
+```
+Pressure < 0.3:  No damping (let it ring!)
+Pressure 0.3-0.7: Gentle quadratic damping
+Pressure > 0.7:  Strong damping (closing)
+```
 
-Mode frequencies were derived from spectral analysis of acoustic cymbal recordings:
+This prevents the "micro-choke" issue where open cymbals were constantly damped.
 
-**Ride Bell** (measured):
-- Fundamental: 407 Hz
-- Peak "ping" frequencies: 4208 Hz, 5638 Hz
-- Spectral centroid: 5287 Hz
-- Decay: ~1.5 seconds
+### Mode Counts by Type
 
-**Ride Edge** (measured):
-- Fundamental: 102 Hz (much lower!)
-- Most energy below 1 kHz
-- Spectral centroid: 1524 Hz
-- Decay: 30+ seconds
+| Type | Open | Closed | Notes |
+|------|------|--------|-------|
+| Ride Bell | 19 | - | Sparse, pingy |
+| Ride Edge | 17 | - | Dark wash |
+| Crash | 46 | - | Dense inharmonic |
+| Hi-Hat | 44 | 16 | Long/short decay |
+| Splash | 25 | - | Body + sparkle |
 
 ---
 
 ## Changelog
 
-### v3.1.0 (January 2026)
-- **FIXED**: Edge vs Bell modes completely reversed in v3.0
-  - Edge now correctly dark (1524 Hz centroid) with very long decay
-  - Bell now correctly bright (5287 Hz centroid) with short decay
-- Added **Output Mode** parameter (Add/Replace)
-- Added **None** option for Choke input
-- Added **None** option for Output R (mono mode)
-- Stick transient brightness now matches cymbal type
+### v0.1.0-dev (January 2026)
+- **FIXED**: Hi-Hat open decay too short (60-180ms → 400-700ms)
+- **FIXED**: Choke damping was continuous, now threshold-based
+- **FIXED**: Splash missing body modes (added 1-4kHz)
+- **FIXED**: Crash too pitched (added inharmonic jitter)
+- **NEW**: FDN Reverb from El Applauso v2.3.2
+- **NEW**: 5 venue types with distinct characters
+- Increased wash sustain for open hi-hat (0.25s → 0.9s)
+
+### v3.7.0 (January 2026)
+- Fixed modal normalization (was dividing by sqrt(numModes))
+- Reduced wash noise levels
+- Raised Ride Edge frequencies
+- Denser Crash mode distribution
+
+### v3.6.x (January 2026)
+- Hi-Hat rewritten from spectral analysis
+- WashNoise filter fixed
+- Amplitude distribution corrected
 
 ### v3.0.0 (January 2026)
 - Complete rewrite using true modal synthesis
 - Measured modal frequencies from real cymbals
-- Individual decay rates per mode
-- Replaced broken resonator bank approach
 
-### v2.x (December 2025)
-- Multiple attempts to fix resonator-based synthesis
-- Issues: wrong spectral centroid, decay times 4-6x too long
-- All cymbal types sounded similar
+---
 
-### v1.x (December 2025)
-- Initial release with resonator bank synthesis
-- Issues discovered through spectral analysis comparison
+## Known Issues
+
+- [ ] High CPU with 46-mode Crash on some patches
+- [ ] Ride Sizzle style needs tuning
+- [ ] No CV input for strike zone selection yet
 
 ---
 
 ## Roadmap
 
-Features planned for future versions:
-
 - [ ] China cymbal type
-- [ ] Sizzle/rivet modes
-- [ ] Zone CV input
-- [ ] Additional venue reverb types
-- [ ] Custom UI with output meters
-- [ ] Grab transient synthesis
+- [ ] Per-hit frequency randomization
+- [ ] Custom UI with spectrum display
+- [ ] CV-controlled strike zone
 
 ---
 
@@ -198,6 +235,8 @@ Physical modeling informed by:
 - Spectral analysis of real cymbal recordings
 - Peterson & Rossing cymbal modal analysis (1982)
 - Fletcher & Bassett acoustic studies (1979)
+
+FDN Reverb ported from El Applauso v2.3.2.
 
 ---
 
